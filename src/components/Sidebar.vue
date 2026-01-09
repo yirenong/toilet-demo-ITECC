@@ -1,13 +1,13 @@
 <template>
     <aside :class="['app-sidebar', { collapsed }]">
         <div class="logo-section">
-            <img src="../assets/cavill_logo.png" alt="Logo" class="logo" />
+            <img src="../assets/cavill_logo2.png" alt="Logo" class="logo" />
         </div>
 
         <!-- Close button on mobile only -->
         <button class="close-btn" @click="$emit('toggle-sidebar')">&times;</button>
 
-        <nav>
+        <nav class="nav-content">
             <div class="menu-section">
                 <span class="menu-title">MENU</span>
                 <ul class="menu">
@@ -19,39 +19,52 @@
                     </li>
                 </ul>
             </div>
-
-            <div class="menu-section">
-                <span class="menu-title">Analytics</span>
-                <ul class="menu">
-                    <li>
-                        <router-link to="/analytics" class="menu-link" @click="onLinkClick">
-                            <i class="fas fa-tint"></i>
-                            <span class="link-text">Analytics</span>
-                        </router-link>
-                    </li>
-                </ul>
-            </div>
-
-            <div class="menu-section">
-                <span class="menu-title">Threshold</span>
-                <ul class="menu">
-                    <li>
-                        <router-link to="/threshold" class="menu-link" @click="onLinkClick">
-                            <i class="fas fa-tint"></i>
-                            <span class="link-text">Threshold</span>
-                        </router-link>
-                    </li>
-                </ul>
-            </div>
         </nav>
+
+        <!-- 🔴 Logout section at bottom -->
+        <div class="logout-section">
+            <button class="menu-link logout-btn" @click="logout">
+                <i class="fas fa-sign-out-alt"></i>
+                <span class="link-text">Logout</span>
+            </button>
+        </div>
     </aside>
 </template>
 
 <script setup>
 defineProps({ collapsed: Boolean })
 const emit = defineEmits(['toggle-sidebar'])
+
 const isMobile = () => window.matchMedia('(max-width: 768px)').matches
-function onLinkClick() { if (isMobile()) emit('toggle-sidebar') } // close drawer only on mobile
+function onLinkClick() {
+    if (isMobile()) emit('toggle-sidebar')
+}
+
+async function logout() {
+    try {
+        // 1) Clear storage
+        localStorage.clear();
+        sessionStorage.clear();
+
+        // 2) Clear Cache Storage (PWA / SW caches)
+        if ("caches" in window) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map((k) => caches.delete(k)));
+        }
+
+        // 3) OPTIONAL: Unregister service workers (if you use one)
+        if ("serviceWorker" in navigator) {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map((r) => r.unregister()));
+        }
+    } catch (e) {
+        console.warn("Logout cleanup failed:", e);
+    } finally {
+        // 4) Redirect to login
+        window.location.href = "/login";
+    }
+}
+
 </script>
 
 <style scoped>
@@ -68,10 +81,17 @@ function onLinkClick() { if (isMobile()) emit('toggle-sidebar') } // close drawe
     transition: width 0.3s, transform 0.3s;
     overflow: hidden;
     z-index: 2000;
+
+    display: flex;
+    flex-direction: column;
 }
 
 .app-sidebar.collapsed {
     width: 5%;
+}
+
+.nav-content {
+    flex: 1;
 }
 
 .menu-section {
@@ -90,6 +110,10 @@ function onLinkClick() { if (isMobile()) emit('toggle-sidebar') } // close drawe
     text-decoration: none;
     border-radius: 4px;
     transition: background 0.2s;
+    background: none;
+    border: none;
+    width: 100%;
+    cursor: pointer;
 }
 
 .menu-link i {
@@ -105,7 +129,6 @@ function onLinkClick() { if (isMobile()) emit('toggle-sidebar') } // close drawe
     background: var(--sidebar-hover-color);
     border-left: 4px solid var(--header-icon-hover-color);
     padding-left: 12px;
-    color: var(--sidebar-text-color);
 }
 
 .logo-section {
@@ -114,7 +137,7 @@ function onLinkClick() { if (isMobile()) emit('toggle-sidebar') } // close drawe
 }
 
 .logo {
-    height: 48px;
+    height: 78px;
 }
 
 .menu-title {
@@ -122,7 +145,6 @@ function onLinkClick() { if (isMobile()) emit('toggle-sidebar') } // close drawe
     margin-bottom: 8px;
     font-size: 11px;
     letter-spacing: 1px;
-    color: var(--sidebar-text-color);
     text-transform: uppercase;
 }
 
@@ -132,44 +154,44 @@ function onLinkClick() { if (isMobile()) emit('toggle-sidebar') } // close drawe
     text-overflow: ellipsis;
 }
 
-.app-sidebar.collapsed .menu-section {
-    margin-bottom: 0;
-    margin-top: 24%;
+/* 🔴 Logout styling */
+.logout-section {
+    padding: 16px;
+    border-top: 1px solid var(--sidebar-hover-color);
 }
 
-/* ---- Desktop-only collapsed rail behavior (HIDE TEXT) ---- */
+.logout-btn {
+    color: #ff6b6b;
+}
+
+.logout-btn:hover {
+    background: rgba(255, 107, 107, 0.15);
+}
+
+/* ---- Desktop collapsed rail ---- */
 @media (min-width: 769px) {
 
     .app-sidebar.collapsed .menu-title,
     .app-sidebar.collapsed .link-text {
         display: none;
-        /* hide labels in rail */
     }
 
     .app-sidebar.collapsed .menu-link {
         justify-content: center;
-        /* center icons */
         padding: 12px 0;
-        /* tighter padding */
     }
 
     .app-sidebar.collapsed .menu-link i {
         margin-right: 0;
-        /* remove gap since text is hidden */
     }
 
     .app-sidebar.collapsed .router-link-active {
         border-left: 0;
-        /* remove active left bar in rail */
         padding-left: 0;
     }
 
     .app-sidebar.collapsed .logo {
         height: 40px;
-    }
-
-    .app-sidebar.collapsed .logo-section {
-        margin-bottom: 16px;
     }
 }
 
@@ -196,20 +218,13 @@ function onLinkClick() { if (isMobile()) emit('toggle-sidebar') } // close drawe
         right: 12px;
         background: none;
         border: none;
-        color: var(--sidebar-text-color);
         font-size: 24px;
         cursor: pointer;
     }
 
-    /* Always show text/titles on mobile */
     .link-text,
     .menu-title {
         display: block !important;
-    }
-
-    .app-sidebar.collapsed .menu-link {
-        justify-content: left;
-        padding: 16px 16px;
     }
 }
 </style>

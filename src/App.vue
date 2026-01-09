@@ -1,13 +1,14 @@
 <template>
   <div id="app">
-    <Sidebar :collapsed="isCollapsed" @toggle-sidebar="toggleSidebar" />
+    <Sidebar v-if="isLoggedIn" :collapsed="isCollapsed" @toggle-sidebar="toggleSidebar" />
 
-    <!-- On desktop: 'collapsed' class makes main margin 5%.
-         On mobile: main is always full width (CSS media query). -->
-    <div class="main" :class="{ collapsed: isCollapsed && isDesktop }">
-      <Navbar :collapsed="isCollapsed && isDesktop" @toggle-sidebar="toggleSidebar" />
+    <div class="main" :class="{
+      withSidebar: isLoggedIn && isDesktop,
+      collapsed: isLoggedIn && isDesktop && isCollapsed
+    }">
+      <Navbar v-if="isLoggedIn" :collapsed="isCollapsed && isDesktop" @toggle-sidebar="toggleSidebar" />
 
-      <div class="view-container">
+      <div class="view-container" :class="{ 'no-chrome': !isLoggedIn }">
         <router-view />
       </div>
     </div>
@@ -15,57 +16,59 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import Sidebar from './components/Sidebar.vue'
-import Navbar from './components/Navbar.vue'
+import { ref, onMounted, onBeforeUnmount, watch } from "vue";
+import Sidebar from "./components/Sidebar.vue";
+import Navbar from "./components/Navbar.vue";
+import { useAuth } from "./stores/auth";
 
-/**
- * Unified state:
- * - Desktop: isCollapsed=true => slim rail (5%)
- * - Mobile:  isCollapsed=true => drawer OPEN
- */
-const isCollapsed = ref(false)
-const isMobile = ref(false)
-const isDesktop = ref(true)
+const { isLoggedIn, syncFromStorage } = useAuth();
 
-let mq
+const isCollapsed = ref(false);
+const isMobile = ref(false);
+const isDesktop = ref(true);
+let mq;
 
 function updateViewportFlags() {
-  const mobile = mq.matches
-  isMobile.value = mobile
-  isDesktop.value = !mobile
-  // When switching viewport, keep current collapsed state:
-  //  - desktop: keep slim/expanded as user set
-  //  - mobile: keep drawer open/closed as user set
-  applyScrollLock()
+  const mobile = mq.matches;
+  isMobile.value = mobile;
+  isDesktop.value = !mobile;
+  applyScrollLock();
 }
 
 function toggleSidebar() {
-  // Now toggles BOTH desktop (slim rail) and mobile (drawer)
-  isCollapsed.value = !isCollapsed.value
-  applyScrollLock()
+  isCollapsed.value = !isCollapsed.value;
+  applyScrollLock();
 }
 
-/* Lock body scroll only when the MOBILE drawer is open */
 function lockBody(lock) {
-  document.documentElement.style.overflow = lock ? 'hidden' : ''
-  document.body.style.overflow = lock ? 'hidden' : ''
+  document.documentElement.style.overflow = lock ? "hidden" : "";
+  document.body.style.overflow = lock ? "hidden" : "";
 }
 function applyScrollLock() {
-  lockBody(isMobile.value && isCollapsed.value)
+  lockBody(isLoggedIn.value && isMobile.value && isCollapsed.value);
 }
 
 onMounted(() => {
-  mq = window.matchMedia('(max-width: 768px)')
-  updateViewportFlags()
-  mq.addEventListener?.('change', updateViewportFlags)
-})
+  mq = window.matchMedia("(max-width: 768px)");
+  updateViewportFlags();
+  mq.addEventListener?.("change", updateViewportFlags);
+
+  // multi-tab sync
+  window.addEventListener("storage", syncFromStorage);
+});
 
 onBeforeUnmount(() => {
-  mq?.removeEventListener?.('change', updateViewportFlags)
-})
+  mq?.removeEventListener?.("change", updateViewportFlags);
+  window.removeEventListener("storage", syncFromStorage);
+});
 
-watch(isCollapsed, applyScrollLock)
+watch(isLoggedIn, () => {
+  // when logged out, reset UI
+  if (!isLoggedIn.value) {
+    isCollapsed.value = false;
+    lockBody(false);
+  }
+});
 </script>
 
 <style scoped>
@@ -75,34 +78,43 @@ watch(isCollapsed, applyScrollLock)
   position: relative;
 }
 
-/* Desktop layout: reserve space for sidebar */
 .main {
   flex: 1;
   display: flex;
   flex-direction: column;
-  margin-left: 15%;
+  margin-left: 0;
   transition: margin-left 0.3s;
 }
 
-/* Only apply slim margin when desktop AND (if you ever set collapsed) */
-.main.collapsed {
+/* ✅ Logged in desktop width */
+.main.withSidebar {
+  margin-left: 15%;
+}
+
+/* ✅ Collapsed desktop rail */
+.main.withSidebar.collapsed {
   margin-left: 5%;
 }
 
-/* Content area */
 .view-container {
-  margin-top: 60px;
-  /* space for Navbar */
+  margin-top: 0;
   flex: 1;
   overflow: auto;
   background: var(--main-bg-color);
   padding: 20px;
 }
 
-/* Mobile: sidebar is off-canvas; main should take full width */
+.view-container:not(.no-chrome) {
+  margin-top: 60px;
+}
+
+.view-container.no-chrome {
+  padding: 0;
+}
+
 @media (max-width: 768px) {
   .main {
-    margin-left: 0;
+    margin-left: 0 !important;
   }
 }
 </style>
